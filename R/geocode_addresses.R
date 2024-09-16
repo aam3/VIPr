@@ -1,22 +1,29 @@
+#' geocode_addresses
+#'
+#' A wrapper function that converts a list of addresses to lat/long coordinates
+#'
+#'@import ggmap
+#'@import dplyr
+#'
+#' @param API_key personal Google API key
+#' @param addresses list of addresses to geocode; vector
+#'
+#' @return data frame with Google Geocoding output
+#' @export
+#'
+#' @examples
+#' geocode_addresses(API_key = API_key, addresses = df_to_geocode$location)
+#'
 geocode_addresses <- function(API_key, addresses) {
-  #' @title Geocode Data Frame of Addresses
-  #' @description A wrapper function that geocodes a data frame of 
-  #' addresses. 
-  #' 
-  #' @param API_key character: character string containing Google API key  
-  #' @param addresses vector: character vector containing addresses to map to coordinates
-  #' @return data frame with output from the Geocoding API as 
-  #' columns, including latitude and longitude columns.
-  
+
   if (!is.null(API_key)) {
     register_google(key = API_key, write = TRUE)
   } else {
     stop("No API key provided. Cannot access Google Geocoding API.")
   }
 
-
   if (length(addresses) > 0) {
-  
+
     # geocode addresses in parallel in batches of 500 rows
     df_list <- vector(mode = "list")
     n_groups <- 5
@@ -35,7 +42,7 @@ geocode_addresses <- function(API_key, addresses) {
   } else {
     stop("addresses vector is length zero.")
   }
-  
+
   paste0("# of addresses not geocoded: ", nrow(df_geocoded %>% dplyr::filter(is.na(lat_ggl))))
 
   return(df_geocoded)
@@ -49,7 +56,7 @@ geocode_addresses <- function(API_key, addresses) {
   for (i in 1:length(addresses_subvector)) {
     # initialize data frame that will hold geocode information
     answer <- .geocode_single_address(addresses_subvector[i])
-    
+
     row_list <- append(row_list, list(answer))
   }
   return(bind_rows(row_list))
@@ -57,12 +64,12 @@ geocode_addresses <- function(API_key, addresses) {
 
 
 .geocode_single_address <- function(address) {
-  
+
   answer <- data.frame(lat=NA, long=NA, formatted_address=NA,
                        location_type=NA, address_type=NA)
-  
+
   # answer$address <- address
-  
+
   # perform geocoding on address if it is not NA
   if ((!is.na(address)) & (!address=="")) {
 
@@ -78,16 +85,16 @@ geocode_addresses <- function(API_key, addresses) {
                       return(answer)
                   }
                  )
-      
+
     if ("results" %in% names(geo_reply)) {
       # else, extract what we need from the Google server reply into a dataframe:
       answer$lat <- geo_reply$results[[1]]$geometry$location$lat
       answer$long <- geo_reply$results[[1]]$geometry$location$lng
       answer$location_type <- geo_reply$results[[1]]$geometry$location_type
-      
+
       answer$address_type <- paste(geo_reply$results[[1]]$types, collapse=',')
       answer$formatted_address <- geo_reply$results[[1]]$formatted_address
-    
+
       # extract address components, city and state_abr
       add_comps <- unlist(geo_reply$results[[1]]$address_components)
       city_i <- which(add_comps=="locality")
@@ -100,8 +107,8 @@ geocode_addresses <- function(API_key, addresses) {
       }
     }
   }
-  
+
   return(answer)
-  
+
 }
 

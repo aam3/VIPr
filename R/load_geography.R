@@ -1,19 +1,24 @@
-
-#'Return the geography for a city's census
-#'place or tracts within a city's census place.
+#' load_geography
 #'
-#'@param state_abr character. State abbreviation of city.
-#'@param fips_code character. FIPS code for city's census place.
-#'@param geography_level character. "place" or "tract" or "block",
-#'the geographic level of the data to return.
-#'@param census_year integer. year of data from which tracts or places
-#' should be loaded. (place data is not available before 2011, but
-#' 2010 tract data is used for any year before 2020, so if needing
-#' to get tracts within the census place boundary, it is okay
-#' to use 2011.)
+#' Get the geography for census place(s), tract(s), block(s), or block group(s)
 #'
-#'@return sf dataframe
-#'@export
+#'@import tigris
+#'@import sf
+#'@import dplyr
+#'
+#' @param geography_level geography type to return; "place", "tract", "block", or "block group"
+#' @param census_year the year of the data to get
+#' @param state_abr state abbreviation(s) of the geographies to be returned
+#' @param counties county(ies) of the geographies to be returned
+#' @param fips_code if geography_level = "place", optionally provide the FIPS code of a census place
+#' @param crs_code the CRS code of the geography
+#'
+#' @return sf data frame
+#' @export
+#'
+#' @examples
+#' load_geography(geography_level="place", census_year=2020, state_abr="KY", fips_code="2148000")
+#'
 load_geography <- function(geography_level, census_year=NULL, state_abr=NULL, counties=NULL, fips_code=NULL, crs_code=4326) {
 
   if (geography_level == "place") {

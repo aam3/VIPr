@@ -1,17 +1,35 @@
+#' generate_ACS_yearly_pop_tract
+#'
+#' gets yearly ACS populations for census tracts across multiple years; this function will impute population values for years not yet available using the average change in prior years
+#'
+#'@import tidycensus
+#'@import dplyr
+#'
+#' @param census_key personal Census API key
+#' @param state_abr state abbreviation(s)
+#' @param years_to_include a vector of years to include
+#' @param filter_tracts a vector of tract ID's to filter the populations to
+#'
+#' @return data frame; population by tract
+#' @export
+#'
+#' @examples
+#' generate_ACS_yearly_pop_tract(census_key = API_key, state_abr = unique(df_agg$state_abr), years_to_include = unique(df_agg$year), filter_tracts = city_tract_geography$tract_id)
+#'
 generate_ACS_yearly_pop_tract <- function(census_key, state_abr, years_to_include=seq(2014,2023), filter_tracts=NULL) {
-  
+
   census_api_key(census_key, overwrite = TRUE, install = TRUE)
-  
+
   pop_var <- "B01003_001"
 
   pop_tracts <- foreach(i = 1:length(state_abr), .combine=rbind) %do% {
     foreach(j = 1:length(years_to_include), .combine=rbind) %do% {
-      
+
       tryCatch(
           {
-            get_acs(geography="tract", 
-                    variables=pop_var, 
-                    state=state_abr[i], 
+            get_acs(geography="tract",
+                    variables=pop_var,
+                    state=state_abr[i],
                     year=years_to_include[j],
                     cache_table=TRUE) %>%
                 mutate(year = years_to_include[j]) %>%
@@ -19,30 +37,30 @@ generate_ACS_yearly_pop_tract <- function(census_key, state_abr, years_to_includ
                 dplyr::select(-moe)
           },
             error=function(cond) {
-              
+
             },
         warning=function(cond) {
-  
+
         }
       )
     }
   }
-  
+
   print(paste0("Latest acs5 pop year available: ", max(pop_tracts$year)))
 
   names(pop_tracts) <- tolower(names(pop_tracts))
-  
+
   if (!is.null(filter_tracts)) {
-    pop_tracts <- pop_tracts %>% 
+    pop_tracts <- pop_tracts %>%
       filter(geoid %in% filter_tracts)
   }
-  
+
   # the "NAME" column is causing duplicates because the exact value in column NAME is changing
   # over time
   pop_tracts <- pop_tracts %>%
     dplyr::select(-name) %>%
     distinct()
-  
+
   years_to_include_df <- data.frame(year = years_to_include)
   df_pops <- pop_tracts %>%
     select(geoid, variable) %>%
@@ -52,14 +70,13 @@ generate_ACS_yearly_pop_tract <- function(census_key, state_abr, years_to_includ
     left_join(pop_tracts, by=c("geoid", "variable", "year")) %>%
     select(-dummy) %>%
     arrange(year)
-  
+
   df_pops <- df_pops %>%
     group_by(geoid)
-      
+
   # get average years
-  
   n_yrs_to_avg <- 3
-  
+
   df1 <- df_pops %>%
     arrange(desc(year)) %>%
     filter(!is.na(population)) %>%
@@ -68,17 +85,17 @@ generate_ACS_yearly_pop_tract <- function(census_key, state_abr, years_to_includ
            max_year_w_data = max(year)) %>%
     select(geoid, variable, min_year_w_data, max_year_w_data) %>%
     distinct()
-  
+
   df1_w_pops <- df1 %>%
     inner_join(df_pops %>% select(geoid, year, population), by=c("geoid", "min_year_w_data"="year")) %>%
     rename(min_year_population = population) %>%
     inner_join(df_pops %>% select(geoid, year, population), by=c("geoid", "max_year_w_data"="year")) %>%
     rename(max_year_population = population)
-  
+
   df1_w_pops <- df1_w_pops %>%
     filter(max_year_w_data >= 2020) %>%
     mutate(avg_change_per_year = (max_year_population - min_year_population)/(max_year_w_data - min_year_w_data))
-  
+
   df_pops <- df_pops %>%
     left_join(df1_w_pops, by=c("geoid", "variable", "year"="max_year_w_data")) %>%
     arrange(year) %>%
@@ -95,10 +112,10 @@ generate_ACS_yearly_pop_tract <- function(census_key, state_abr, years_to_includ
     group_by(geoid) %>%
     fill(population_est, .direction = "up") %>% # replace this with longitudinal database
     select(geoid, year, population_est)
- 
+
   df_pops <- df_pops %>%
     mutate(population_est = ifelse(population_est < 0, 0, population_est))
-  
+
   return(df_pops)
 }
 
